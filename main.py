@@ -1,10 +1,11 @@
 import json
+import os
 import mimetypes
 import socket
 from datetime import datetime
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from pathlib import Path
-from threading import Thread
+from threading import Thread, Event
 from urllib.parse import urlparse, unquote_plus
 
 
@@ -13,7 +14,7 @@ class HttpGetHandler(BaseHTTPRequestHandler):
         data = self.rfile.read(int(self.headers.get('Content-Length')))
         self.send_to_server(data)
         self.send_response(302)
-        self.send_header('Location', '/message')
+        self.send_header('Location', '/')
         self.end_headers()
 
     def do_GET(self):
@@ -55,26 +56,31 @@ class HttpGetHandler(BaseHTTPRequestHandler):
         client_socket.close()
 
 
-def run_socket_server(ip='127.0.0.1', port=5000):
+def run_socket_server(event: Event, ip='127.0.0.1', port=5000):
+    print('Socket is working...')
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     server = ip, port
     server_socket.bind(server)
-    try:
-        while True:
-            raw_data, address = server_socket.recvfrom(1024)
-            if raw_data:
-                data = unquote_plus(raw_data.decode())
-                dict_data = {str(datetime.now()): {key: value.strip() for key, value in [el.split('=') for el in data.split('&')]}}
-                save_to_json(dict_data)
-            else:
-                break
-    except KeyboardInterrupt:
-        print('Stopping socket server...')
-    finally:
-        server_socket.close()
+
+    while not event.is_set():
+        raw_data, address = server_socket.recvfrom(1024)
+        data = unquote_plus(raw_data.decode())
+        dict_data = {str(datetime.now()): {key: value.strip() for key, value in [el.split('=') for el in data.split('&')]}}
+        save_to_json(dict_data)
+
+    server_socket.close()
+    print('Stopping socket server...')
+
+
+def check_existing():
+    if not os.path.exists('storage'):
+        os.mkdir('storage')
+        with open('storage/data.json', 'w') as file:
+            json.dump({}, file)
 
 
 def save_to_json(dict_data: dict):
+    check_existing()
     with open('storage/data.json', 'r+', encoding='utf-8') as file:
         json_data = json.load(file)
         json_data.update(dict_data)
@@ -82,48 +88,34 @@ def save_to_json(dict_data: dict):
         json.dump(json_data, file, indent=4)
 
 
-def run_server(server_class=HTTPServer, handler_class=HttpGetHandler):
+def run_web_server(event: Event, server_class=HTTPServer, handler_class=HttpGetHandler):
+    print('Web server is working...')
     server_address = ('127.0.0.1', 3000)
     http = server_class(server_address, handler_class)
+
+    while not event.is_set():
+        http.handle_request()
+
+    http.server_close()
+    print('Stopping web server...')
+
+
+def main():
+    event = Event()
+    thread_web_server = Thread(target=run_web_server, args=(event, ))
+    thread_socket_server = Thread(target=run_socket_server, args=(event, ))
+
     try:
-        http.serve_forever()
+        thread_web_server.start()
+        thread_socket_server.start()
+        thread_web_server.join()
+        thread_socket_server.join()
     except KeyboardInterrupt:
-        print('Stopping http app...')
-    finally:
-        http.server_close()
+        event.set()
+        print('Stopping servers...')
 
-
-# def main():
-#     thread_socket_server = Thread(target=run_socket_server)
-#     thread_http_server = Thread(target=run_server)
-#     thread_socket_server.start()
-#     thread_http_server.start()
-#
-#     try:
-#         thread_socket_server.join()
-#         thread_http_server.join()
-#     except KeyboardInterrupt:
-#         print('KeyboardInterrupt: Stopping servers...')
-#         thread_socket_server.join(timeout=1)
-#         thread_http_server.join(timeout=1)
-#         print('End of the program.')
+    print('End of the program.')
 
 
 if __name__ == '__main__':
-    # main()
-    # thread_socket = Thread(target=run_socket_server)
-    # thread_socket.start()
-    # run_socket_server()
-    # run_server()
-
-    thread_socket_server = Thread(target=run_socket_server)
-    thread_http_server = Thread(target=run_server)
-
-    try:
-        thread_socket_server.start()
-        thread_http_server.start()
-    except KeyboardInterrupt:
-        print('KeyboardInterrupt: Stopping servers...')
-        thread_socket_server.join(timeout=1)
-        thread_http_server.join(timeout=1)
-        print('End of the program.')
+    main()
