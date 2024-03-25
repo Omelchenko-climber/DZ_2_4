@@ -63,10 +63,10 @@ def run_socket_server(event: Event, ip='127.0.0.1', port=5000):
     server_socket.bind(server)
 
     while not event.is_set():
-        raw_data, address = server_socket.recvfrom(1024)
-        data = unquote_plus(raw_data.decode())
-        dict_data = {str(datetime.now()): {key: value.strip() for key, value in [el.split('=') for el in data.split('&')]}}
-        save_to_json(dict_data)
+            raw_data, address = server_socket.recvfrom(1024)
+            data = unquote_plus(raw_data.decode())
+            dict_data = {str(datetime.now()): {key: value.strip() for key, value in [el.split('=') for el in data.split('&')]}}
+            save_to_json(dict_data)
 
     server_socket.close()
     print('Stopping socket server...')
@@ -108,8 +108,10 @@ def main():
     try:
         thread_web_server.start()
         thread_socket_server.start()
+
         thread_web_server.join()
         thread_socket_server.join()
+
     except KeyboardInterrupt:
         event.set()
         print('Stopping servers...')
@@ -119,3 +121,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+

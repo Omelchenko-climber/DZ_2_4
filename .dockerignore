@@ -1,0 +1,27 @@
+# Ignore compiled Python files
+*.pyc
+
+# Ignore files in the "venv" directory
+venv/
+
+# Ignore log files
+*.log
+
+# Ignore database files
+*.db
+
+# Ignore temporary files
+*.tmp
+
+# Ignore cache directories
+__pycache__/
+
+# Ignore Docker-related files and directories
+.dockerignore
+.docker/
+.dockerignore
+.dockerignore.example
+
+# Ignore editor/IDE specific files
+.idea/
+.vscode/
